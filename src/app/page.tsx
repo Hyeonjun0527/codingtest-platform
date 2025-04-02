@@ -53,6 +53,8 @@ int main() {
   ])
   const [userProgress, setUserProgress] = useState(0)
   const [showRaceTrack, setShowRaceTrack] = useState(true)
+  const [userTypedCharCount, setUserTypedCharCount] = useState(0)
+  const [initialTemplate, setInitialTemplate] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   
   // 코드 실행 결과 상태
@@ -106,13 +108,30 @@ int main() {
     const newText = e.target.value
     setText(newText)
     
-    // 타이머 시작
-    if (!startTime && newText.length === 1) {
-      setStartTime(Date.now())
+    // 현재 선택된 언어의 템플릿 코드 가져오기
+    const currentTemplate = supportedLanguages.find(lang => lang.id === selectedLanguage)?.template || ''
+    
+    // 초기 템플릿 코드 설정 (첫 실행 시)
+    if (initialTemplate === '') {
+      setInitialTemplate(currentTemplate)
     }
     
-    // 진행도 업데이트 (예상 코드 길이를 300자로 가정)
-    const progress = Math.min(100, (newText.length / 300) * 100)
+    // 타이머 시작 - 템플릿 코드와 다를 때
+    if (!startTime && newText !== currentTemplate) {
+      setStartTime(Date.now())
+      // 실제 타이핑한 글자 수 초기화
+      setUserTypedCharCount(1) // 첫 글자 입력
+    } else if (startTime && newText !== currentTemplate) {
+      // 이전 텍스트와 현재 텍스트의 길이 차이로 타이핑 수 변경 추정
+      // 간단한 구현을 위해 길이 증가만 카운트
+      const prevText = text
+      if (newText.length > prevText.length) {
+        setUserTypedCharCount(prev => prev + (newText.length - prevText.length))
+      }
+    }
+    
+    // 진행도 업데이트 (예상 코드 길이를 300자로 가정하지만 실제 타이핑한 글자 수 기준)
+    const progress = Math.min(100, (userTypedCharCount / 300) * 100)
     setUserProgress(progress)
     
     // 진행 중인 타자 속도 계산
@@ -120,7 +139,8 @@ int main() {
       const currentTime = Date.now()
       const timeInSeconds = (currentTime - startTime) / 1000
       if (timeInSeconds > 0) {
-        const currentWpm = calculateWpm(newText, timeInSeconds)
+        // 실제 타이핑한 글자 수 기준으로 WPM 계산
+        const currentWpm = calculateWpm(userTypedCharCount.toString(), timeInSeconds)
         setWpm(currentWpm)
       }
     }
@@ -137,11 +157,21 @@ int main() {
         // 새 언어의 템플릿으로 코드 초기화
         const newTemplate = supportedLanguages.find(lang => lang.id === newLanguage)?.template || ''
         setText(newTemplate)
+        // 초기 템플릿 업데이트
+        setInitialTemplate(newTemplate)
+        // 타이핑 카운트 및 진행도 초기화
+        setUserTypedCharCount(0)
+        setUserProgress(0)
       }
     } else {
       setSelectedLanguage(newLanguage)
       const newTemplate = supportedLanguages.find(lang => lang.id === newLanguage)?.template || ''
       setText(newTemplate)
+      // 초기 템플릿 업데이트
+      setInitialTemplate(newTemplate)
+      // 타이핑 카운트 및 진행도 초기화
+      setUserTypedCharCount(0)
+      setUserProgress(0)
     }
   }
 
@@ -171,6 +201,8 @@ int main() {
       setWpm(0)
       setIsCompleted(false)
       setUserProgress(0)
+      setUserTypedCharCount(0)
+      setInitialTemplate(currentTemplate)
       setCompetitors([
         { id: 1, name: 'Bot 1', wpm: 24, progress: 0 },
         { id: 2, name: 'Bot 2', wpm: 26, progress: 0 }
