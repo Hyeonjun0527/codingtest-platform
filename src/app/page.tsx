@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
+import CodeOutput from '@/components/CodeOutput'
+import { CodeExecutor } from '@/lib/code-executor'
 
 export default function Home() {
   // 지원하는 프로그래밍 언어 정의
@@ -52,6 +54,23 @@ int main() {
   const [userProgress, setUserProgress] = useState(0)
   const [showRaceTrack, setShowRaceTrack] = useState(true)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  
+  // 코드 실행 결과 상태
+  const [codeOutput, setCodeOutput] = useState<{
+    isVisible: boolean;
+    output: string[];
+    result: any;
+    executionTime: number;
+    success: boolean;
+    isLoading: boolean;
+  }>({
+    isVisible: false,
+    output: [],
+    result: null,
+    executionTime: 0,
+    success: false,
+    isLoading: false
+  })
   
   // 알고리즘 문제
   const algorithmProblem = {
@@ -163,16 +182,70 @@ int main() {
   }
   
   // 코드 실행 핸들러
-  const runCode = () => {
+  const runCode = async () => {
     if (text.trim().length === 0) {
       alert('코드를 입력해주세요.');
       return;
     }
     
-    // 여기서 실제로는 코드 실행 로직이 구현되어야 함
-    // 백엔드 API 호출이나 내장 인터프리터 활용 등
-    const langName = supportedLanguages.find(lang => lang.id === selectedLanguage)?.name || '코드'
-    alert(`${langName} 코드를 실행합니다.`);
+    // 로딩 상태로 변경
+    setCodeOutput(prev => ({
+      ...prev,
+      isVisible: true,
+      isLoading: true,
+      output: ['코드 실행 중...'],
+      result: '실행 중...'
+    }))
+    
+    try {
+      // 클라이언트에서 직접 코드 실행
+      let executionResult;
+      
+      switch (selectedLanguage) {
+        case 'javascript':
+          executionResult = await CodeExecutor.executeJavaScript(text);
+          break;
+        case 'python':
+          executionResult = await CodeExecutor.executePython(text);
+          break;
+        case 'java':
+          executionResult = await CodeExecutor.executeJava(text);
+          break;
+        case 'cpp':
+          executionResult = await CodeExecutor.executeCpp(text);
+          break;
+        default:
+          throw new Error('지원되지 않는 언어입니다.');
+      }
+      
+      // 결과 표시
+      setCodeOutput({
+        isVisible: true,
+        output: executionResult.output || [],
+        result: executionResult.result,
+        executionTime: executionResult.executionTime || 0,
+        success: executionResult.success,
+        isLoading: false
+      });
+    } catch (error: any) {
+      // 오류 처리
+      setCodeOutput({
+        isVisible: true,
+        output: [],
+        result: `오류: ${error.message || '알 수 없는 오류'}`,
+        executionTime: 0,
+        success: false,
+        isLoading: false
+      });
+    }
+  }
+  
+  // 코드 출력 닫기
+  const closeCodeOutput = () => {
+    setCodeOutput(prev => ({
+      ...prev,
+      isVisible: false
+    }));
   }
   
   // 레이싱 트랙 토글
@@ -366,9 +439,10 @@ int main() {
           </button>
           <button
             onClick={runCode}
-            className="bg-green-600 hover:bg-green-500 text-white font-bold py-1.5 px-4 rounded-md transition text-sm"
+            className={`bg-green-600 hover:bg-green-500 text-white font-bold py-1.5 px-4 rounded-md transition text-sm ${codeOutput.isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={codeOutput.isLoading}
           >
-            코드 실행
+            {codeOutput.isLoading ? '실행 중...' : '코드 실행'}
           </button>
           <button
             onClick={handleSubmit}
@@ -379,6 +453,16 @@ int main() {
           </button>
         </div>
       </footer>
+      
+      {/* 코드 실행 결과 출력 */}
+      <CodeOutput
+        isVisible={codeOutput.isVisible}
+        output={codeOutput.output}
+        result={codeOutput.result}
+        executionTime={codeOutput.executionTime}
+        success={codeOutput.success}
+        onClose={closeCodeOutput}
+      />
     </div>
   )
 }
